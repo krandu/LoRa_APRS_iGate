@@ -35,4 +35,8 @@
     #define RADIO_WAKEUP_PIN        RADIO_DIO1_PIN
     #define GPIO_WAKEUP_PIN         GPIO_NUM_2
 
+    #undef  OLED_SDA
+    #undef  OLED_SCL
+    #undef  OLED_RST
+
 #endif
