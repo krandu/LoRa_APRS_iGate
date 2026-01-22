@@ -21,6 +21,9 @@
 #include "board_pinout.h"
 #include "display.h"
 
+#undef HAS_DISPLAY
+#undef HAS_OLED
+
 
 #ifdef HAS_DISPLAY
     #ifdef HAS_TFT
