@@ -77,6 +77,7 @@ extern  Configuration   Config;
 bool    displayFound    = false;
 
 void displaySetup() {
+    /*
     #ifdef HAS_DISPLAY
         delay(500);
         #ifdef HAS_TFT
@@ -145,6 +146,8 @@ void displaySetup() {
         #endif
         delay(1000);
     #endif
+    */
+    Serial.println("Display/I2C disabled to avoid GPIO8 conflict");
 }
 
 void displayToggle(bool toggle) {
