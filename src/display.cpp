@@ -191,6 +191,7 @@ void displayToggle(bool toggle) {
 
 void displayShow(const String& header, const String& line1, const String& line2, const String& line3, int wait) {
     #ifdef HAS_DISPLAY
+    /*
         const String* const lines[] = {&line1, &line2, &line3};
         #ifdef HAS_TFT
             sprite.fillSprite(TFT_BLACK);
@@ -251,11 +252,13 @@ void displayShow(const String& header, const String& line1, const String& line2,
             #endif
         #endif
         delay(wait);
+*/
     #endif
 }
 
 void displayShow(const String& header, const String& line1, const String& line2, const String& line3, const String& line4, const String& line5, const String& line6, int wait) {
     #ifdef HAS_DISPLAY
+/*
         const String* const lines[] = {&line1, &line2, &line3, &line4, &line5, &line6};
         #ifdef HAS_TFT
             sprite.fillSprite(TFT_BLACK);
@@ -318,5 +321,6 @@ void displayShow(const String& header, const String& line1, const String& line2,
             #endif
         #endif
         delay(wait);
+*/
     #endif
 }
