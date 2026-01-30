@@ -30,10 +30,10 @@
     #define RADIO_RST_PIN           5
     #define RADIO_DIO1_PIN          3
     #define RADIO_BUSY_PIN          4
-    #define RADIO_RXEN              2
+    #define RADIO_RXEN              GPIO_NUM_NC
     #define RADIO_TXEN              GPIO_NUM_NC
-    #define RADIO_WAKEUP_PIN        RADIO_DIO1_PIN
-    #define GPIO_WAKEUP_PIN         GPIO_NUM_2
+    #define RADIO_WAKEUP_PIN        GPIO_NUM_NC
+    #define GPIO_WAKEUP_PIN         GPIO_NUM_NC
 
     #undef  OLED_SDA
     #undef  OLED_SCL
