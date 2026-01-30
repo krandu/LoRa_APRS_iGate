@@ -33,7 +33,7 @@
     #define RADIO_RXEN              GPIO_NUM_NC
     #define RADIO_TXEN              GPIO_NUM_NC
     #define RADIO_WAKEUP_PIN        GPIO_NUM_NC
-    #define GPIO_WAKEUP_PIN         GPIO_NUM_NC
+    #define GPIO_WAKEUP_PIN         GPIO_NUM_2
 
     #undef  OLED_SDA
     #undef  OLED_SCL
