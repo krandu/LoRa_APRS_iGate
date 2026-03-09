@@ -14,9 +14,17 @@ jobs:
               target:
                 - name: ttgo-lora32-v21
                   chip: esp32
+                # ↓↓↓ 新增 esp32c3 target ↓↓↓
+                - name: esp32c3_DIY_1W_LoRa
+                  chip: esp32c3
         steps:
             - uses: actions/checkout@v3
 
+            # ↓↓↓ 新增：esp32c3编译前先apply patch ↓↓↓
+            - name: Apply custom SPI patch (esp32c3 only)
+              if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
+              run: git apply --verbose fix_esp32c3_custom_spi.patch
+              
             - uses: actions/setup-python@v4
               with:
                   python-version: "3.9"
@@ -29,3 +37,13 @@ jobs:
 
             - name: Build FS
               run: pio run --target buildfs -e ${{ matrix.target.name }}
+            # ↓↓↓ 新增：上传固件到Artifacts（可选，不需要可删掉）↓↓↓
+            - name: Upload firmware
+              uses: actions/upload-artifact@v4
+              with:
+                name: firmware-${{ matrix.target.name }}
+                path: |
+                  .pio/build/${{ matrix.target.name }}/firmware.bin
+                  .pio/build/${{ matrix.target.name }}/bootloader.bin
+                  .pio/build/${{ matrix.target.name }}/partitions.bin
+                retention-days: 30
