@@ -23,7 +23,7 @@ jobs:
             # ↓↓↓ 新增：esp32c3编译前先apply patch ↓↓↓
             - name: Apply custom SPI patch (esp32c3 only)
               if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
-              run: git apply --verbose fix_esp32c3_custom_spi.patch
+              run: python3 apply_custom_pins.py
               
             - uses: actions/setup-python@v4
               with:
