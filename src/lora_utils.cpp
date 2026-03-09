@@ -80,13 +80,6 @@ namespace LoRa_Utils {
         #if defined(RADIO_HAS_XTAL)
             radio.XTAL = true;
         #endif
-
-        #ifdef HAS_TCXO
-            radio.setTCXO(1.8);
-        #endif
-        #if (defined(RADIO_RXEN) && defined(RADIO_TXEN))
-            radio.setRfSwitchPins(RADIO_RXEN, RADIO_TXEN);
-        #endif
         
         int state = radio.begin(freq);
         if (state != RADIOLIB_ERR_NONE) {
