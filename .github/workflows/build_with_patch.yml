@@ -39,7 +39,11 @@ jobs:
 
             - name: Build FS
               run: pio run --target buildfs -e ${{ matrix.target.name }}
-
+            - name: Check build output files (esp32c3 only)
+              if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
+              run: |
+                echo "===== build output files ====="
+                ls -lh .pio/build/${{ matrix.target.name }}/
             - name: Generate factory bin (esp32c3 only)
               if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
               run: |
