@@ -1,0 +1,66 @@
+--- a/variants/esp32c3_DIY_1W_LoRa/board_pinout.h
++++ b/variants/esp32c3_DIY_1W_LoRa/board_pinout.h
+@@ -18,15 +18,16 @@
+ #ifndef BOARD_PINOUT_H_
+ #define BOARD_PINOUT_H_
+ 
+     //  LoRa Radio
+     #define HAS_SX1268
+     #define HAS_1W_LORA
+     #define HAS_TCXO
+-    #define RADIO_SCLK_PIN          8
+-    #define RADIO_MISO_PIN          9
+-    #define RADIO_MOSI_PIN          10
+-    #define RADIO_CS_PIN            5
+-    #define RADIO_RST_PIN           4
+-    #define RADIO_DIO1_PIN          2
+-    #define RADIO_BUSY_PIN          3
+-    #define RADIO_RXEN              6
+-    #define RADIO_TXEN              7
+-    #define RADIO_WAKEUP_PIN        RADIO_DIO1_PIN
+-    #define GPIO_WAKEUP_PIN         GPIO_NUM_2
++    #define RADIO_SCLK_PIN          10
++    #define RADIO_MISO_PIN          6
++    #define RADIO_MOSI_PIN          7
++    #define RADIO_CS_PIN            8
++    #define RADIO_RST_PIN           5
++    #define RADIO_DIO1_PIN          3
++    #define RADIO_BUSY_PIN          4
++    #define RADIO_RXEN              2
++    #define RADIO_TXEN              GPIO_NUM_NC
++    #define RADIO_WAKEUP_PIN        RADIO_DIO1_PIN
++    #define GPIO_WAKEUP_PIN         GPIO_NUM_3
+ #endif
+--- a/src/lora_utils.cpp
++++ b/src/lora_utils.cpp
+@@ -33,12 +33,9 @@
+ #ifdef HAS_SX1262
+     SX1262 radio = new Module(RADIO_CS_PIN, RADIO_DIO1_PIN, RADIO_RST_PIN, RADIO_BUSY_PIN);
+ #endif
+ #ifdef HAS_SX1268
+-    #if defined(LIGHTGATEWAY_1_0) || defined(LIGHTGATEWAY_PLUS_1_0)
+-        SPIClass loraSPI(FSPI);
+-        SX1268 radio = new Module(RADIO_CS_PIN, RADIO_DIO1_PIN, RADIO_RST_PIN, RADIO_BUSY_PIN, loraSPI);
+-    #else
+-        SX1268 radio = new Module(RADIO_CS_PIN, RADIO_DIO1_PIN, RADIO_RST_PIN, RADIO_BUSY_PIN);
+-    #endif
++    SPIClass loraSPI(FSPI);
++    SX1268 radio = new Module(RADIO_CS_PIN, RADIO_DIO1_PIN, RADIO_RST_PIN, RADIO_BUSY_PIN, loraSPI);
+ #endif
+ #ifdef HAS_SX1278
+     SX1278 radio = new Module(RADIO_CS_PIN, RADIO_BUSY_PIN, RADIO_RST_PIN);
+@@ -55,12 +52,9 @@
+     void setup() {
+-        #if defined (LIGHTGATEWAY_1_0) || defined(LIGHTGATEWAY_PLUS_1_0)
+-            pinMode(RADIO_VCC_PIN,OUTPUT);
+-            digitalWrite(RADIO_VCC_PIN,HIGH);
+-            loraSPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN, RADIO_CS_PIN);
+-        #else
+-            SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN);
+-        #endif
++        #if defined (LIGHTGATEWAY_1_0) || defined(LIGHTGATEWAY_PLUS_1_0)
++            pinMode(RADIO_VCC_PIN,OUTPUT);
++            digitalWrite(RADIO_VCC_PIN,HIGH);
++        #endif
++        loraSPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN, RADIO_CS_PIN);
+         float freq = (float)Config.loramodule.rxFreq / 1000000;
