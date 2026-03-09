@@ -39,15 +39,11 @@ jobs:
 
             - name: Build FS
               run: pio run --target buildfs -e ${{ matrix.target.name }}
-            - name: Check build output (esp32c3 only)
-              if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
-              run: ls -lh .pio/build/${{ matrix.target.name }}/
+
             - name: Generate factory bin (esp32c3 only)
               if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
               run: |
                 pip install esptool
-                echo "===== build dir contents ====="
-                ls -lh .pio/build/${{ matrix.target.name }}/
                 esptool.py --chip esp32c3 merge_bin \
                   -o .pio/build/${{ matrix.target.name }}/factory.bin \
                   --flash_mode dio \
@@ -57,7 +53,7 @@ jobs:
                   0x8000   .pio/build/${{ matrix.target.name }}/partitions.bin \
                   0xe000   ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin \
                   0x10000  .pio/build/${{ matrix.target.name }}/firmware.bin \
-                  0x290000 .pio/build/${{ matrix.target.name }}/littlefs.bin
+                  0x290000 .pio/build/${{ matrix.target.name }}/spiffs.bin
                 echo "factory.bin size:"
                 ls -lh .pio/build/${{ matrix.target.name }}/factory.bin
 
@@ -76,7 +72,7 @@ jobs:
               uses: actions/upload-artifact@v4
               with:
                 name: filesystem-${{ matrix.target.name }}
-                path: .pio/build/${{ matrix.target.name }}/littlefs.bin
+                path: .pio/build/${{ matrix.target.name }}/spiffs.bin
                 retention-days: 30
 
             - name: Upload factory bin (esp32c3 only)
