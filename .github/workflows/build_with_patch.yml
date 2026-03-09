@@ -1,0 +1,84 @@
+name: Commit Test Build
+on:
+    push:
+        branches:
+            - '*'
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+              target:
+                - name: ttgo-lora32-v21
+                  chip: esp32
+                - name: esp32c3_DIY_1W_LoRa
+                  chip: esp32c3
+        steps:
+            - uses: actions/checkout@v3
+
+            - name: Apply custom pin config (esp32c3 only)
+              if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
+              run: python3 apply_custom_pins.py
+
+            - name: Verify patched pins (esp32c3 only)
+              if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
+              run: |
+                echo "===== board_pinout.h ====="
+                cat variants/esp32c3_DIY_1W_LoRa/board_pinout.h
+
+            - uses: actions/setup-python@v4
+              with:
+                  python-version: "3.9"
+
+            - name: Install PlatformIO Core
+              run: pip install --upgrade platformio
+
+            - name: Build target
+              run: pio run -e ${{ matrix.target.name }}
+
+            - name: Build FS
+              run: pio run --target buildfs -e ${{ matrix.target.name }}
+
+            - name: Generate factory bin (esp32c3 only)
+              if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
+              run: |
+                pip install esptool
+                esptool.py --chip esp32c3 merge_bin \
+                  -o .pio/build/${{ matrix.target.name }}/factory.bin \
+                  --flash_mode dio \
+                  --flash_freq 80m \
+                  --flash_size 4MB \
+                  0x0000   .pio/build/${{ matrix.target.name }}/bootloader.bin \
+                  0x8000   .pio/build/${{ matrix.target.name }}/partitions.bin \
+                  0xe000   ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin \
+                  0x10000  .pio/build/${{ matrix.target.name }}/firmware.bin \
+                  0x290000 .pio/build/${{ matrix.target.name }}/littlefs.bin
+                echo "factory.bin size:"
+                ls -lh .pio/build/${{ matrix.target.name }}/factory.bin
+
+            - name: Upload firmware
+              uses: actions/upload-artifact@v4
+              with:
+                name: firmware-${{ matrix.target.name }}
+                path: |
+                  .pio/build/${{ matrix.target.name }}/firmware.bin
+                  .pio/build/${{ matrix.target.name }}/bootloader.bin
+                  .pio/build/${{ matrix.target.name }}/partitions.bin
+                retention-days: 30
+
+            - name: Upload FS image (esp32c3 only)
+              if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
+              uses: actions/upload-artifact@v4
+              with:
+                name: filesystem-${{ matrix.target.name }}
+                path: .pio/build/${{ matrix.target.name }}/littlefs.bin
+                retention-days: 30
+
+            - name: Upload factory bin (esp32c3 only)
+              if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
+              uses: actions/upload-artifact@v4
+              with:
+                name: factory-${{ matrix.target.name }}
+                path: .pio/build/${{ matrix.target.name }}/factory.bin
+                retention-days: 30
