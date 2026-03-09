@@ -46,6 +46,8 @@ jobs:
               if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
               run: |
                 pip install esptool
+                echo "===== build dir contents ====="
+                ls -lh .pio/build/${{ matrix.target.name }}/
                 esptool.py --chip esp32c3 merge_bin \
                   -o .pio/build/${{ matrix.target.name }}/factory.bin \
                   --flash_mode dio \
