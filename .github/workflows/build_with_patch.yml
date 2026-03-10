@@ -37,8 +37,14 @@ jobs:
             - name: Build target
               run: pio run -e ${{ matrix.target.name }}
 
-            - name: Build FS
-              run: pio run --target buildfs -e ${{ matrix.target.name }}
+            - name: Download official spiffs.bin (esp32c3 only)
+              if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
+              run: |
+                mkdir -p .pio/build/${{ matrix.target.name }}
+                wget -q https://github.com/richonguzman/LoRa_APRS_iGate/releases/latest/download/spiffs.bin \
+                  -O .pio/build/${{ matrix.target.name }}/spiffs.bin
+                echo "Official spiffs.bin downloaded:"
+                ls -lh .pio/build/${{ matrix.target.name }}/spiffs.bin
 
             - name: Generate factory bin (esp32c3 only)
               if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
