@@ -41,10 +41,36 @@ jobs:
               if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
               run: |
                 mkdir -p .pio/build/${{ matrix.target.name }}
-                wget -q https://github.com/richonguzman/LoRa_APRS_iGate/releases/latest/download/spiffs.bin \
-                  -O .pio/build/${{ matrix.target.name }}/spiffs.bin
-                echo "Official spiffs.bin downloaded:"
+                wget -q https://github.com/richonguzman/LoRa_APRS_iGate/releases/latest/download/esp32c3_DIY_1W_LoRa.zip \
+                  -O /tmp/official.zip
+                echo "=== zip内容 ==="
+                unzip -l /tmp/official.zip
+                unzip -o /tmp/official.zip -d /tmp/official/
+                cp "/tmp/official/installer/firmware/spiffs.bin" \
+                  .pio/build/${{ matrix.target.name }}/spiffs.bin
+                echo "=== 官方 spiffs.bin ==="
                 ls -lh .pio/build/${{ matrix.target.name }}/spiffs.bin
+                md5sum .pio/build/${{ matrix.target.name }}/spiffs.bin
+
+            - name: Compare with self-built spiffs.bin (esp32c3 only)
+              if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
+              run: |
+                echo "=== 自己编译的 spiffs.bin ==="
+                pio run --target buildfs -e ${{ matrix.target.name }}
+                mv .pio/build/${{ matrix.target.name }}/spiffs.bin /tmp/self_spiffs.bin
+                ls -lh /tmp/self_spiffs.bin
+                md5sum /tmp/self_spiffs.bin
+
+                echo "=== 对比结果 ==="
+                official_md5=$(md5sum .pio/build/${{ matrix.target.name }}/../${{ matrix.target.name }}/spiffs.bin 2>/dev/null || md5sum $(find .pio/build -name spiffs.bin | head -1))
+                if diff <(md5sum /tmp/self_spiffs.bin | awk '{print $1}') \
+                        <(md5sum .pio/build/${{ matrix.target.name }}/spiffs.bin 2>/dev/null | awk '{print $1}') > /dev/null 2>&1; then
+                  echo "两个 spiffs.bin 完全一致 ✓"
+                else
+                  echo "两个 spiffs.bin 不同！"
+                  echo "官方: $(ls -lh .pio/build/${{ matrix.target.name }}/spiffs.bin)"
+                  echo "自编: $(ls -lh /tmp/self_spiffs.bin)"
+                fi
 
             - name: Generate factory bin (esp32c3 only)
               if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
