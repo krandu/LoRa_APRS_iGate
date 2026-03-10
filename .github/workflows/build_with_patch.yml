@@ -37,26 +37,6 @@ jobs:
             - name: Build target
               run: pio run -e ${{ matrix.target.name }}
 
-            - name: Show all partition names (esp32c3 only)
-              if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
-              run: |
-                echo "===== All Partitions ====="
-                python3 -c "
-                import struct
-                with open('.pio/build/${{ matrix.target.name }}/partitions.bin', 'rb') as f:
-                    data = f.read()
-                for i in range(0, len(data), 32):
-                    row = data[i:i+32]
-                    if len(row) < 32 or row[0] != 0xAA or row[1] != 0x50:
-                        continue
-                    name = row[4:20].rstrip(b'\x00').decode(errors='ignore')
-                    ptype = row[2]
-                    subtype = row[3]
-                    offset = struct.unpack('<I', row[20:24])[0]
-                    size = struct.unpack('<I', row[24:28])[0]
-                    print(f'name=[{name}] type={ptype} subtype={subtype} offset=0x{offset:06X} size=0x{size:06X}')
-                "
-
             - name: Download official spiffs.bin (esp32c3 only)
               if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
               run: |
@@ -72,23 +52,42 @@ jobs:
               if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
               run: |
                 pip install esptool
-                SPIFFS_OFFSET=$(python3 -c "
-                import struct
-                with open('.pio/build/${{ matrix.target.name }}/partitions.bin', 'rb') as f:
-                    data = f.read()
-                for i in range(0, len(data), 32):
-                    row = data[i:i+32]
-                    if len(row) < 32 or row[0] != 0xAA or row[1] != 0x50:
-                        continue
-                    ptype = row[2]
-                    subtype = row[3]
-                    offset = struct.unpack('<I', row[20:24])[0]
-                    # type=1(data) subtype=130(0x82)=spiffs or 129(0x81)=fat
-                    if ptype == 1 and subtype in (0x82, 0x81, 0x83):
-                        print(hex(offset))
-                        break
-                ")
-                echo "spiffs partition offset: $SPIFFS_OFFSET"
+                echo "===== Partition Table ====="
+                python3 -m esptool --chip esp32c3 partition_table \
+                  .pio/build/${{ matrix.target.name }}/partitions.bin 2>/dev/null || \
+                pip install esp-idf-nvs-partition-gen 2>/dev/null || true
+
+                # 用gen_esp32part解析
+                pip install esptool
+                python3 -c "
+                import subprocess, re, sys
+                result = subprocess.run(
+                  ['python3', '-m', 'esptool', '--chip', 'esp32c3', 'partition-table',
+                   '.pio/build/esp32c3_DIY_1W_LoRa/partitions.bin'],
+                  capture_output=True, text=True)
+                print(result.stdout)
+                print(result.stderr)
+                " || true
+
+                # 直接用gen_esp32part.py解析
+                GEN_TOOL=$(find ~/.platformio -name "gen_esp32part.py" 2>/dev/null | head -1)
+                echo "gen_esp32part.py: $GEN_TOOL"
+                if [ -n "$GEN_TOOL" ]; then
+                  python3 $GEN_TOOL .pio/build/${{ matrix.target.name }}/partitions.bin
+                  SPIFFS_OFFSET=$(python3 $GEN_TOOL \
+                    .pio/build/${{ matrix.target.name }}/partitions.bin 2>/dev/null | \
+                    grep -i "spiffs\|ffat\|data" | grep -v "^#" | \
+                    awk -F',' '{print $4}' | head -1 | tr -d ' ')
+                  echo "spiffs offset from gen_esp32part: $SPIFFS_OFFSET"
+                fi
+
+                # fallback: 硬编码官方已知地址
+                if [ -z "$SPIFFS_OFFSET" ] || [ "$SPIFFS_OFFSET" = "0x0" ]; then
+                  SPIFFS_OFFSET="0x290000"
+                  echo "Using fallback offset: $SPIFFS_OFFSET"
+                fi
+
+                echo "Final spiffs offset: $SPIFFS_OFFSET"
                 esptool.py --chip esp32c3 merge_bin \
                   -o .pio/build/${{ matrix.target.name }}/factory.bin \
                   --flash_mode dio \
