@@ -37,6 +37,24 @@ jobs:
             - name: Build target
               run: pio run -e ${{ matrix.target.name }}
 
+            - name: Show partition table (esp32c3 only)
+              if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
+              run: |
+                echo "===== Partition Table ====="
+                python3 -c "
+                import struct
+                with open('.pio/build/${{ matrix.target.name }}/partitions.bin', 'rb') as f:
+                    data = f.read()
+                for i in range(0, len(data), 32):
+                    row = data[i:i+32]
+                    if len(row) < 32 or row[0] != 0xAA or row[1] != 0x50:
+                        continue
+                    name = row[4:20].rstrip(b'\x00').decode(errors='ignore')
+                    offset = struct.unpack('<I', row[20:24])[0]
+                    size = struct.unpack('<I', row[24:28])[0]
+                    print(f'{name:16s} offset=0x{offset:06X}  size=0x{size:06X}')
+                "
+
             - name: Compare spiffs.bin (esp32c3 only)
               if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
               run: |
@@ -66,22 +84,36 @@ jobs:
                 echo "=== 用官方 spiffs.bin 替换 ==="
                 cp "/tmp/official/installer/firmware/spiffs.bin" \
                   .pio/build/${{ matrix.target.name }}/spiffs.bin
-                echo "Done"
 
             - name: Generate factory bin (esp32c3 only)
               if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
               run: |
                 pip install esptool
+                SPIFFS_OFFSET=$(python3 -c "
+                import struct
+                with open('.pio/build/${{ matrix.target.name }}/partitions.bin', 'rb') as f:
+                    data = f.read()
+                for i in range(0, len(data), 32):
+                    row = data[i:i+32]
+                    if len(row) < 32 or row[0] != 0xAA or row[1] != 0x50:
+                        continue
+                    name = row[4:20].rstrip(b'\x00').decode(errors='ignore')
+                    offset = struct.unpack('<I', row[20:24])[0]
+                    if 'spiffs' in name.lower() or 'ffat' in name.lower() or 'fs' in name.lower():
+                        print(hex(offset))
+                        break
+                ")
+                echo "spiffs partition offset: $SPIFFS_OFFSET"
                 esptool.py --chip esp32c3 merge_bin \
                   -o .pio/build/${{ matrix.target.name }}/factory.bin \
                   --flash_mode dio \
                   --flash_freq 80m \
                   --flash_size 4MB \
-                  0x0000   .pio/build/${{ matrix.target.name }}/bootloader.bin \
-                  0x8000   .pio/build/${{ matrix.target.name }}/partitions.bin \
-                  0xe000   ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin \
-                  0x10000  .pio/build/${{ matrix.target.name }}/firmware.bin \
-                  0x290000 .pio/build/${{ matrix.target.name }}/spiffs.bin
+                  0x0000         .pio/build/${{ matrix.target.name }}/bootloader.bin \
+                  0x8000         .pio/build/${{ matrix.target.name }}/partitions.bin \
+                  0xe000         ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin \
+                  0x10000        .pio/build/${{ matrix.target.name }}/firmware.bin \
+                  $SPIFFS_OFFSET .pio/build/${{ matrix.target.name }}/spiffs.bin
                 echo "factory.bin size:"
                 ls -lh .pio/build/${{ matrix.target.name }}/factory.bin
 
