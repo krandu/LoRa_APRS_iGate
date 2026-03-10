@@ -37,10 +37,10 @@ jobs:
             - name: Build target
               run: pio run -e ${{ matrix.target.name }}
 
-            - name: Show partition table (esp32c3 only)
+            - name: Show all partition names (esp32c3 only)
               if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
               run: |
-                echo "===== Partition Table ====="
+                echo "===== All Partitions ====="
                 python3 -c "
                 import struct
                 with open('.pio/build/${{ matrix.target.name }}/partitions.bin', 'rb') as f:
@@ -50,40 +50,23 @@ jobs:
                     if len(row) < 32 or row[0] != 0xAA or row[1] != 0x50:
                         continue
                     name = row[4:20].rstrip(b'\x00').decode(errors='ignore')
+                    ptype = row[2]
+                    subtype = row[3]
                     offset = struct.unpack('<I', row[20:24])[0]
                     size = struct.unpack('<I', row[24:28])[0]
-                    print(f'{name:16s} offset=0x{offset:06X}  size=0x{size:06X}')
+                    print(f'name=[{name}] type={ptype} subtype={subtype} offset=0x{offset:06X} size=0x{size:06X}')
                 "
 
-            - name: Compare spiffs.bin (esp32c3 only)
+            - name: Download official spiffs.bin (esp32c3 only)
               if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
               run: |
-                echo "=== 自己编译的 spiffs.bin ==="
-                pio run --target buildfs -e ${{ matrix.target.name }}
-                ls -lh .pio/build/${{ matrix.target.name }}/spiffs.bin
-                md5sum .pio/build/${{ matrix.target.name }}/spiffs.bin
-
-                echo "=== 官方 release spiffs.bin ==="
                 wget -q https://github.com/richonguzman/LoRa_APRS_iGate/releases/latest/download/esp32c3_DIY_1W_LoRa.zip \
                   -O /tmp/official.zip
                 unzip -o /tmp/official.zip -d /tmp/official/
-                ls -lh "/tmp/official/installer/firmware/spiffs.bin"
-                md5sum "/tmp/official/installer/firmware/spiffs.bin"
-
-                echo "=== 对比结果 ==="
-                self_md5=$(md5sum .pio/build/${{ matrix.target.name }}/spiffs.bin | awk '{print $1}')
-                official_md5=$(md5sum "/tmp/official/installer/firmware/spiffs.bin" | awk '{print $1}')
-                if [ "$self_md5" = "$official_md5" ]; then
-                  echo "两个 spiffs.bin 完全一致 ✓"
-                else
-                  echo "两个 spiffs.bin 不同！"
-                  echo "自编 md5: $self_md5"
-                  echo "官方 md5: $official_md5"
-                fi
-
-                echo "=== 用官方 spiffs.bin 替换 ==="
                 cp "/tmp/official/installer/firmware/spiffs.bin" \
                   .pio/build/${{ matrix.target.name }}/spiffs.bin
+                echo "Official spiffs.bin:"
+                ls -lh .pio/build/${{ matrix.target.name }}/spiffs.bin
 
             - name: Generate factory bin (esp32c3 only)
               if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
@@ -97,9 +80,11 @@ jobs:
                     row = data[i:i+32]
                     if len(row) < 32 or row[0] != 0xAA or row[1] != 0x50:
                         continue
-                    name = row[4:20].rstrip(b'\x00').decode(errors='ignore')
+                    ptype = row[2]
+                    subtype = row[3]
                     offset = struct.unpack('<I', row[20:24])[0]
-                    if 'spiffs' in name.lower() or 'ffat' in name.lower() or 'fs' in name.lower():
+                    # type=1(data) subtype=130(0x82)=spiffs or 129(0x81)=fat
+                    if ptype == 1 and subtype in (0x82, 0x81, 0x83):
                         print(hex(offset))
                         break
                 ")
