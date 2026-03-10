@@ -52,52 +52,29 @@ jobs:
               if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
               run: |
                 pip install esptool
-                echo "===== Partition Table ====="
-                python3 -m esptool --chip esp32c3 partition_table \
-                  .pio/build/${{ matrix.target.name }}/partitions.bin 2>/dev/null || \
-                pip install esp-idf-nvs-partition-gen 2>/dev/null || true
 
-                # 用gen_esp32part解析
-                pip install esptool
-                python3 -c "
-                import subprocess, re, sys
-                result = subprocess.run(
-                  ['python3', '-m', 'esptool', '--chip', 'esp32c3', 'partition-table',
-                   '.pio/build/esp32c3_DIY_1W_LoRa/partitions.bin'],
-                  capture_output=True, text=True)
-                print(result.stdout)
-                print(result.stderr)
-                " || true
+                GEN_TOOL=$(find ~/.platformio -name "gen_esp32part.py" | head -1)
+                echo "Using: $GEN_TOOL"
 
-                # 直接用gen_esp32part.py解析
-                GEN_TOOL=$(find ~/.platformio -name "gen_esp32part.py" 2>/dev/null | head -1)
-                echo "gen_esp32part.py: $GEN_TOOL"
-                if [ -n "$GEN_TOOL" ]; then
-                  python3 $GEN_TOOL .pio/build/${{ matrix.target.name }}/partitions.bin
-                  SPIFFS_OFFSET=$(python3 $GEN_TOOL \
-                    .pio/build/${{ matrix.target.name }}/partitions.bin 2>/dev/null | \
-                    grep -i "spiffs\|ffat\|data" | grep -v "^#" | \
-                    awk -F',' '{print $4}' | head -1 | tr -d ' ')
-                  echo "spiffs offset from gen_esp32part: $SPIFFS_OFFSET"
-                fi
+                SPIFFS_OFFSET=$(python3 $GEN_TOOL \
+                  .pio/build/${{ matrix.target.name }}/partitions.bin 2>/dev/null | \
+                  grep "^spiffs" | \
+                  awk -F',' '{print $4}' | tr -d ' ')
+                echo "spiffs offset: $SPIFFS_OFFSET"
 
-                # fallback: 硬编码官方已知地址
-                if [ -z "$SPIFFS_OFFSET" ] || [ "$SPIFFS_OFFSET" = "0x0" ]; then
-                  SPIFFS_OFFSET="0x290000"
-                  echo "Using fallback offset: $SPIFFS_OFFSET"
-                fi
+                BOOT_APP0=$(find ~/.platformio -name "boot_app0.bin" | head -1)
+                echo "boot_app0: $BOOT_APP0"
 
-                echo "Final spiffs offset: $SPIFFS_OFFSET"
                 esptool.py --chip esp32c3 merge_bin \
                   -o .pio/build/${{ matrix.target.name }}/factory.bin \
                   --flash_mode dio \
                   --flash_freq 80m \
                   --flash_size 4MB \
-                  0x0000         .pio/build/${{ matrix.target.name }}/bootloader.bin \
-                  0x8000         .pio/build/${{ matrix.target.name }}/partitions.bin \
-                  0xe000         ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin \
-                  0x10000        .pio/build/${{ matrix.target.name }}/firmware.bin \
-                  $SPIFFS_OFFSET .pio/build/${{ matrix.target.name }}/spiffs.bin
+                  0x0000          .pio/build/${{ matrix.target.name }}/bootloader.bin \
+                  0x8000          .pio/build/${{ matrix.target.name }}/partitions.bin \
+                  0xe000          $BOOT_APP0 \
+                  0x10000         .pio/build/${{ matrix.target.name }}/firmware.bin \
+                  $SPIFFS_OFFSET  .pio/build/${{ matrix.target.name }}/spiffs.bin
                 echo "factory.bin size:"
                 ls -lh .pio/build/${{ matrix.target.name }}/factory.bin
 
