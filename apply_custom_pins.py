@@ -16,7 +16,7 @@ PIN_MAP = {
     r"(#define RADIO_RST_PIN\s+)\d+":            r"\g<1>5",
     r"(#define RADIO_DIO1_PIN\s+)\d+":           r"\g<1>3",
     r"(#define RADIO_BUSY_PIN\s+)\d+":           r"\g<1>4",
-    r"(#define RADIO_RXEN\s+)\d+":               r"\g<1>7",
+    r"(#define RADIO_RXEN\s+)\d+":               r"\g<1>2",
     r"(#define RADIO_TXEN\s+)\d+":               r"\g<1>GPIO_NUM_NC",
     r"(#define GPIO_WAKEUP_PIN\s+)GPIO_NUM_\d+": r"\g<1>GPIO_NUM_3",
 }
