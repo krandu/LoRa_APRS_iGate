@@ -1,0 +1,75 @@
+name: Release esp32c3_DIY_1W_LoRa Firmware
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  TARGET: esp32c3_DIY_1W_LoRa
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply custom pin config
+        run: python3 apply_custom_pins.py
+      - name: Verify patched pins
+        run: |
+          echo "===== board_pinout.h ====="
+          cat variants/${{ env.TARGET }}/board_pinout.h
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+      - name: Build firmware
+        run: pio run -e ${{ env.TARGET }}
+      - name: Download official spiffs.bin
+        run: |
+          wget -q https://github.com/richonguzman/LoRa_APRS_iGate/releases/latest/download/${{ env.TARGET }}.zip \
+            -O /tmp/official.zip
+          unzip -o /tmp/official.zip -d /tmp/official/
+          cp "/tmp/official/installer/firmware/spiffs.bin" \
+            .pio/build/${{ env.TARGET }}/spiffs.bin
+          echo "Official spiffs.bin:"
+          ls -lh .pio/build/${{ env.TARGET }}/spiffs.bin
+      - name: Generate factory bin
+        run: |
+          pip install esptool
+          GEN_TOOL=$(find ~/.platformio -name "gen_esp32part.py" | head -1)
+          SPIFFS_OFFSET=$(python3 $GEN_TOOL \
+            .pio/build/${{ env.TARGET }}/partitions.bin 2>/dev/null | \
+            grep "^spiffs" | awk -F',' '{print $4}' | tr -d ' ')
+          echo "spiffs offset: $SPIFFS_OFFSET"
+          BOOT_APP0=$(find ~/.platformio -name "boot_app0.bin" | head -1)
+          esptool.py --chip esp32c3 merge_bin \
+            -o .pio/build/${{ env.TARGET }}/factory.bin \
+            --flash_mode dio \
+            --flash_freq 80m \
+            --flash_size 4MB \
+            0x0000         .pio/build/${{ env.TARGET }}/bootloader.bin \
+            0x8000         .pio/build/${{ env.TARGET }}/partitions.bin \
+            0xe000         $BOOT_APP0 \
+            0x10000        .pio/build/${{ env.TARGET }}/firmware.bin \
+            $SPIFFS_OFFSET .pio/build/${{ env.TARGET }}/spiffs.bin
+          echo "factory.bin size:"
+          ls -lh .pio/build/${{ env.TARGET }}/factory.bin
+      - name: Upload firmware to Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ env.TARGET }}
+          path: |
+            .pio/build/${{ env.TARGET }}/firmware.bin
+            .pio/build/${{ env.TARGET }}/bootloader.bin
+            .pio/build/${{ env.TARGET }}/partitions.bin
+            .pio/build/${{ env.TARGET }}/spiffs.bin
+            .pio/build/${{ env.TARGET }}/factory.bin
+          retention-days: 90
+      - name: Upload factory.bin to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            .pio/build/${{ env.TARGET }}/factory.bin
+            .pio/build/${{ env.TARGET }}/firmware.bin
+            .pio/build/${{ env.TARGET }}/spiffs.bin

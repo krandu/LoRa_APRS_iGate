@@ -1,0 +1,101 @@
+name: Commit Test Build
+on:
+    push:
+        branches:
+            - '*'
+env:
+    FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+              target:
+                - name: ttgo-lora32-v21
+                  chip: esp32
+                - name: esp32c3_DIY_1W_LoRa
+                  chip: esp32c3
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Apply custom pin config (esp32c3 only)
+              if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
+              run: python3 apply_custom_pins.py
+
+            - name: Verify patched pins (esp32c3 only)
+              if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
+              run: |
+                echo "===== board_pinout.h ====="
+                cat variants/esp32c3_DIY_1W_LoRa/board_pinout.h
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: "3.9"
+
+            - name: Install PlatformIO Core
+              run: pip install --upgrade platformio
+
+            - name: Build target
+              run: pio run -e ${{ matrix.target.name }}
+
+            - name: Download official spiffs.bin (esp32c3 only)
+              if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
+              run: |
+                wget -q https://github.com/richonguzman/LoRa_APRS_iGate/releases/latest/download/esp32c3_DIY_1W_LoRa.zip \
+                  -O /tmp/official.zip
+                unzip -o /tmp/official.zip -d /tmp/official/
+                cp "/tmp/official/installer/firmware/spiffs.bin" \
+                  .pio/build/${{ matrix.target.name }}/spiffs.bin
+                echo "Official spiffs.bin:"
+                ls -lh .pio/build/${{ matrix.target.name }}/spiffs.bin
+            - name: Generate factory bin (esp32c3 only)
+              if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
+              run: |
+                pip install esptool
+                GEN_TOOL=$(find ~/.platformio -name "gen_esp32part.py" | head -1)
+                echo "Using: $GEN_TOOL"
+                SPIFFS_OFFSET=$(python3 $GEN_TOOL \
+                  .pio/build/${{ matrix.target.name }}/partitions.bin 2>/dev/null | \
+                  grep "^spiffs" | \
+                  awk -F',' '{print $4}' | tr -d ' ')
+                echo "spiffs offset: $SPIFFS_OFFSET"
+                BOOT_APP0=$(find ~/.platformio -name "boot_app0.bin" | head -1)
+                echo "boot_app0: $BOOT_APP0"
+                esptool.py --chip esp32c3 merge_bin \
+                  -o .pio/build/${{ matrix.target.name }}/factory.bin \
+                  --flash_mode dio \
+                  --flash_freq 80m \
+                  --flash_size 4MB \
+                  0x0000          .pio/build/${{ matrix.target.name }}/bootloader.bin \
+                  0x8000          .pio/build/${{ matrix.target.name }}/partitions.bin \
+                  0xe000          $BOOT_APP0 \
+                  0x10000         .pio/build/${{ matrix.target.name }}/firmware.bin \
+                  $SPIFFS_OFFSET  .pio/build/${{ matrix.target.name }}/spiffs.bin
+                echo "factory.bin size:"
+                ls -lh .pio/build/${{ matrix.target.name }}/factory.bin
+            - name: Upload firmware
+              uses: actions/upload-artifact@v4
+              with:
+                name: firmware-${{ matrix.target.name }}
+                path: |
+                  .pio/build/${{ matrix.target.name }}/firmware.bin
+                  .pio/build/${{ matrix.target.name }}/bootloader.bin
+                  .pio/build/${{ matrix.target.name }}/partitions.bin
+                retention-days: 30
+
+            - name: Upload FS image (esp32c3 only)
+              if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
+              uses: actions/upload-artifact@v4
+              with:
+                name: filesystem-${{ matrix.target.name }}
+                path: .pio/build/${{ matrix.target.name }}/spiffs.bin
+                retention-days: 30
+
+            - name: Upload factory bin (esp32c3 only)
+              if: matrix.target.name == 'esp32c3_DIY_1W_LoRa'
+              uses: actions/upload-artifact@v4
+              with:
+                name: factory-${{ matrix.target.name }}
+                path: .pio/build/${{ matrix.target.name }}/factory.bin
+                retention-days: 30
